@@ -15,57 +15,83 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-
-const db = mysql.createConnection({
+// Configuración de base de datos adaptada a la nube (Aiven)
+const dbConfig = {
   host: process.env.DB_HOST || '127.0.0.1',
   port: process.env.DB_PORT || 3306,
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || 'Gabriel2000',
   database: process.env.DB_NAME || 'guardianec_db',
-  
-  ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
-});
+  // Aiven exige SSL en la nube. Si detecta que no es localhost, activa SSL automáticamente:
+  ssl: process.env.DB_HOST && process.env.DB_HOST !== '127.0.0.1' 
+       ? { rejectUnauthorized: false } 
+       : null
+};
 
-db.connect((err) => {
-  if (err) {
-    console.error('Error conectando a la base de datos:', err.message);
-    return;
-  }
-  console.log('☑ ¡Conectado exitosamente a la base de datos de GuardianEC!');
+let db = mysql.createConnection(dbConfig);
 
- 
-  const crearTablaUsuarios = `
-    CREATE TABLE IF NOT EXISTS usuarios (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      nombre VARCHAR(100) NOT NULL,
-      email VARCHAR(100) UNIQUE NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );`;
+// Función para conectar y manejar caídas en servidores gratuitos de la nube
+function conectarBD() {
+  db = mysql.createConnection(dbConfig);
 
-  const crearTablaIncidentes = `
-    CREATE TABLE IF NOT EXISTS incidentes (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      usuario_id INT NOT NULL,
-      titulo VARCHAR(150) NOT NULL,
-      descripcion TEXT,
-      latitud DOUBLE NOT NULL,
-      longitud DOUBLE NOT NULL,
-      categoria VARCHAR(50) NOT NULL,
-      estado VARCHAR(20) DEFAULT 'Pendiente',
-      imagen_base64 LONGTEXT,
-      fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
-    );`;
+  db.connect((err) => {
+    if (err) {
+      console.error('❌ Error conectando a la base de datos:', err.message);
+      // Reintentar conexión en 5 segundos si falla al arrancar
+      setTimeout(conectarBD, 5000);
+      return;
+    }
+    console.log('☑ ¡Conectado exitosamente a la base de datos de GuardianEC!');
 
-  db.query(crearTablaUsuarios, (err) => {
-    if (err) console.error("Error al crear tabla usuarios:", err.message);
-    db.query(crearTablaIncidentes, (err) => {
-      if (err) console.error("Error al crear tabla incidentes:", err.message);
-      console.log(" Base de datos sincronizada y tus 2 tablas listas para operar.");
+    // Creación de las 2 tablas dentro del éxito de la conexión
+    const crearTablaUsuarios = `
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );`;
+
+    const crearTablaIncidentes = `
+      CREATE TABLE IF NOT EXISTS incidentes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        titulo VARCHAR(150) NOT NULL,
+        descripcion TEXT,
+        latitud DOUBLE NOT NULL,
+        longitud DOUBLE NOT NULL,
+        categoria VARCHAR(50) NOT NULL,
+        estado VARCHAR(20) DEFAULT 'Pendiente',
+        imagen_base64 LONGTEXT,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      );`;
+
+    db.query(crearTablaUsuarios, (err) => {
+      if (err) console.error("Error al crear tabla usuarios:", err.message);
+      db.query(crearTablaIncidentes, (err) => {
+        if (err) console.error("Error al crear tabla incidentes:", err.message);
+        console.log("🚀 Base de datos sincronizada y tus 2 tablas listas para operar.");
+      });
     });
   });
-});
+
+  // ⚠️ CRÍTICO PARA EVITAR ERROR 502 EN RENDER:
+  // Si Aiven cierra la conexión por inactividad, este bloque evita que Node.js se apague
+  db.on('error', (err) => {
+    console.error('⚠️ Error inesperado en la base de datos:', err.message);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+      console.log('🔄 Reconectando a la base de datos...');
+      conectarBD();
+    } else {
+      throw err;
+    }
+  });
+}
+
+// Iniciar conexión
+conectarBD();
 
 const JWT_SECRET = 'clave_secreta_guardianec_2026';
 
@@ -150,5 +176,5 @@ app.put('/api/incidentes/resolver/:id', verificarToken, (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(` Servidor corriendo en el puerto ${PORT}`);
+  console.log(`🚀 Servidor corriendo en el puerto ${PORT}`);
 });
