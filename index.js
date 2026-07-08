@@ -15,7 +15,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Configuración del Pool de conexiones para Aiven en la nube
+
 const dbPool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   port: process.env.DB_PORT || 3306,
@@ -31,7 +31,7 @@ const dbPool = mysql.createPool({
        : null
 });
 
-// Probar conexión y crear tablas al arrancar sin apagar el servidor si demora
+
 dbPool.getConnection((err, connection) => {
   if (err) {
     console.error('❌ Error de conexión con Aiven:', err.message);
