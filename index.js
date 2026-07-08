@@ -22,7 +22,7 @@ const db = mysql.createConnection({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || 'Gabriel2000',
   database: process.env.DB_NAME || 'guardianec_db',
-  // Aiven requiere SSL obligatorio en la nube:
+  
   ssl: process.env.DB_HOST ? { rejectUnauthorized: false } : null
 });
 
