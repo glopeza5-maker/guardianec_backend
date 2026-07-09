@@ -79,14 +79,21 @@ const JWT_SECRET = 'clave_secreta_guardianec_2026';
 
 function verificarToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  if (!authHeader) return res.status(403).json({ error: 'Acceso denegado. Token no provisto.' });
+  if (!authHeader) {
+    return res.status(403).json({ error: 'Acceso denegado. Token no provisto.' });
+  }
+
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
 
   jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) return res.status(401).json({ error: 'Sesión expirada o token inválido.' });
-    req.usuarioId = decoded.id;
-    next();
-  });
+    if (err) {
+      return res.status(401).json({ error: 'Sesión expirada o token inválido.' });
+    }
+    
+    
+    req.usuarioId = decoded.id; 
+    next(); 
+  }); // <-- Aquí se cierra correctamente jwt.verify
 }
 
 // 1. ENDPOINT: REGISTRO DE USUARIOS
@@ -136,18 +143,31 @@ app.get('/api/incidentes/listar', (req, res) => {
 // 4. ENDPOINT: CREAR INCIDENTE
 app.post('/api/incidentes/crear', verificarToken, (req, res) => {
   const { titulo, descripcion, latitud, longitud, categoria, imagen_base64 } = req.body;
-  const usuario_id = req.usuariold; // o req.usuarioId según tu definición en verificarToken
+  
+  
+  const usuario_id = req.usuarioId; 
+  
   const lat_num = parseFloat(latitud);
   const lon_num = parseFloat(longitud);
+
+ 
+  if (!usuario_id) {
+    return res.status(400).json({ error: 'No se pudo identificar al usuario. Inicia sesión nuevamente.' });
+  }
 
   
   const queryInsertar = 'INSERT INTO incidentes (usuario_id, titulo, descripcion, latitud, longitud, categoria, estado, imagen_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
   
-  
-  dbPool.query(queryInsertar, [usuario_id, titulo, descripcion || '', lat_num, lon_num, categoria, 'Pendiente', imagen_base64 || null], (errInsert, result) => {
-    if (errInsert) return res.status(500).json({ error: `MySQL Falló: ${errInsert.message}` });
-    res.status(201).json({ mensaje: '¡Incidente reportado!', incidenteId: result.insertId });
-  });
+  dbPool.query(
+    queryInsertar, 
+    [usuario_id, titulo, descripcion || '', lat_num, lon_num, categoria, 'Pendiente', imagen_base64 || null], 
+    (errInsert, result) => {
+      if (errInsert) {
+        return res.status(500).json({ error: `MySQL Falló: ${errInsert.message}` });
+      }
+      res.status(201).json({ mensaje: '¡Incidente reportado!', incidenteId: result.insertId });
+    }
+  );
 });
 
 // 5. ENDPOINT: RESOLVER INCIDENTE
