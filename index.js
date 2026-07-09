@@ -25,7 +25,7 @@ const dbPool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  // SSL obligatorio y seguro para Aiven
+  
   ssl: process.env.DB_HOST && process.env.DB_HOST !== '127.0.0.1' 
        ? { rejectUnauthorized: false } 
        : null
@@ -136,12 +136,15 @@ app.get('/api/incidentes/listar', (req, res) => {
 // 4. ENDPOINT: CREAR INCIDENTE
 app.post('/api/incidentes/crear', verificarToken, (req, res) => {
   const { titulo, descripcion, latitud, longitud, categoria, imagen_base64 } = req.body;
-  const usuario_id = req.usuarioId;
+  const usuario_id = req.usuariold; // o req.usuarioId según tu definición en verificarToken
   const lat_num = parseFloat(latitud);
   const lon_num = parseFloat(longitud);
 
-  const queryInsertar = 'INSERT INTO incidentes (usuario_id, titulo, descripcion, latitud, longitud, categoria, estado, imagen_base64) VALUES (?, ?, ?, ?, ?, ?, "Pendiente", ?)';
-  dbPool.query(queryInsertar, [usuario_id, titulo, descripcion || '', lat_num, lon_num, categoria, imagen_base64 || null], (errInsert, result) => {
+  
+  const queryInsertar = 'INSERT INTO incidentes (usuario_id, titulo, descripcion, latitud, longitud, categoria, estado, imagen_base64) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+  
+  
+  dbPool.query(queryInsertar, [usuario_id, titulo, descripcion || '', lat_num, lon_num, categoria, 'Pendiente', imagen_base64 || null], (errInsert, result) => {
     if (errInsert) return res.status(500).json({ error: `MySQL Falló: ${errInsert.message}` });
     res.status(201).json({ mensaje: '¡Incidente reportado!', incidenteId: result.insertId });
   });
